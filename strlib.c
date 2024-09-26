@@ -18,15 +18,15 @@ const char* str_find(const char* str, const char* substr, int start) {
     int j;
     while (str[i] != '\0') {
         j = 0;
-        while (str[i + j] != '\0' && substr[j] != '\0' && str[i + j] == substr[j]) {
+            while (str[i + j] != '\0' && substr[j] != '\0' && str[i + j] == substr[j]) { // ensures we dont go past the end of either str nor substr and ensures the current char is a match in both strings.  
             j++;
         }
         if (substr[j] == '\0') { // Found the whole substring
-            return str + i;
+            return &str[i]; // return a pointer to the starting position of the substring in the main string str.
         }
         i++;
     }
-    return NULL; // Substring not found
+    return NULL; // Substring not found.
 }
 
 // Copies characters from src to dest until a specified string (delimiter) is found
