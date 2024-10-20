@@ -1,18 +1,38 @@
 #ifndef STRLIB_H
 #define STRLIB_H
 
+#include <stdbool.h>
+
+// ==== HELPER FUNCTIONS ====
 // Copies characters from src to dest from start to end
 void str_copyRange(const char* src, int start, int end, char* dest);
 
 // Returns pointer to the first occurrence of substr in str after start position
 const char* str_find(const char* str, const char* substr, int start);
 
+const char* str_find(const char* str, const char* substr, int start);
+
 // Copies characters from src to dest until a specified string (delimiter) is found
 void str_copyUntil(const char* src, const char* delimiter, char* dest);
 
-// Checks if a character is a whitespace character
-int str_isWhitespace(char c);
+// Checks if a code point is a Unicode whitespace character
+int str_isUnicodeWhitespace(int codePoint);
 
+// Checks if a character is a whitespace character
+int str_isWhitespace(char* str);
+
+bool str_isValidUTF8(const char* str);
+
+// Returns the length of the UTF-8 sequence starting with the given byte
+int str_getUTF8SequenceLength(unsigned char byte);
+
+// Returns the code point from a sequence of UTF-8 bytes
+int str_getCodePointFromBytes(const char* str, int seqLen);
+
+// Returns the Unicode code point from the start of the string and advances the pointer
+int str_getUTF8CodePoint(const char** str);
+
+// ==== MAIN FUNCTIONS ====
 // Returns the length of a string
 int str_length(const char* str);
 
