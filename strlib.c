@@ -1,130 +1,155 @@
-#include <stddef.h> // For NULL definition
+#include <stddef.h>  // For NULL definition
 #include <stdbool.h> // For bool definition
 #include <stdio.h>
+#include <stdlib.h>  // For malloc and free
+#include <string.h>  // For strncpy, strncat, and strcmp
+#include "strlib.h"
 
 // List of common Unicode whitespace code points
-const int unicodeWhitespace[] = {
-    0x0009, 0x000A, 0x000B, 0x000C, 0x000D, // ASCII control characters
-    0x0020, // Space
-    0x0085, // Next Line
-    0x00A0, // No-Break Space
-    0x1680, // Ogham Space Mark
-    0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200A, // En quad to Hair space
-    0x2028, 0x2029, // Line Separator and Paragraph Separator
-    0x202F, // Narrow No-Break Space
-    0x205F, // Medium Mathematical Space
-    0x3000  // Ideographic Space
+const int unicodeWhitespace[] = { 
+    0x0009, 0x000A, 0x000B, 0x000C, 0x000D, 0x0020, 0x0085, 0x00A0, 0x1680, 
+    0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200A, 
+    0x2028, 0x2029, 0x202F, 0x205F, 0x3000
 };
 
-// ==== HELPER FUNCTIONS ====
+StrError str_last_error = STR_SUCCESS;
+
 // Copies characters from src to dest from start to end
-void str_copyRange(const char* src, int start, int end, char* dest) {
+StrError str_copyRange(const char* src, int start, int end, char* dest) {
+    if (!src || !dest) return (str_last_error = STR_ERROR_NULL_INPUT);
+    
     int i = 0;
-    int codePoint;
     while (*src && i < start) {
-        str_getUTF8CodePoint(&src);  // Advance the pointer based on code point
+        str_getUTF8CodePoint(&src);
         i++;
     }
+    
     while (*src && i < end) {
-        const char* srcStart = src;  // Preserve the starting point of the code point
-        str_getUTF8CodePoint(&src);  // Get the next code point and advance the pointer
-        int len = src - srcStart;    // Calculate the number of bytes for this code point
-        strncpy(dest, srcStart, len); // Copy the full code point to the destination
-        dest += len;  // Advance the destination pointer
+        const char* srcStart = src;
+        str_getUTF8CodePoint(&src);
+        int len = src - srcStart;
+        strncpy(dest, srcStart, len);
+        dest += len;
         i++;
     }
-    *dest = '\0';  // Null-terminate the destination string
+    
+    *dest = '\0';
+    return (str_last_error = STR_SUCCESS);
 }
 
-// Find the first occurrence of a substring in a string
+// Finds the first occurrence of a substring in a string
 const char* str_find(const char* str, const char* substr, int start) {
-    if (start < 0) return NULL;  // Invalid start index
+    if (!str || !substr) {
+        str_last_error = STR_ERROR_NULL_INPUT;
+        return NULL;
+    }
+    if (start < 0) {
+        str_last_error = STR_ERROR_INVALID_INDEX;
+        return NULL;
+    }
+
     int i = 0;
     while (*str && i < start) {
-        str_getUTF8CodePoint(&str);  // Advance the string pointer by the code point length
+        str_getUTF8CodePoint(&str);
         i++;
     }
-    return str_findHelper(str, substr);  // Start searching from the adjusted position
+
+    return str_findHelper(str, substr);
 }
 
+// Helper function to find the substring in the string
 const char* str_findHelper(const char* str, const char* substr) {
+    if (!str || !substr) {
+        str_last_error = STR_ERROR_NULL_INPUT;
+        return NULL;
+    }
+
     while (*str) {
         const char* tempStr = str;
         const char* tempSubstr = substr;
         int matched = 1;
+        
         while (*tempSubstr && *tempStr) {
-            int codePoint1 = str_getUTF8CodePoint(&tempStr);  // Get the next code point from str
-            int codePoint2 = str_getUTF8CodePoint(&tempSubstr);  // Get the next code point from substr
+            int codePoint1 = str_getUTF8CodePoint(&tempStr);
+            int codePoint2 = str_getUTF8CodePoint(&tempSubstr);
             if (codePoint1 != codePoint2) {
                 matched = 0;
                 break;
             }
         }
-        if (matched && *tempSubstr == '\0') {
-            return str;  // Substring found
-        }
-        str_getUTF8CodePoint(&str);  // Move the pointer to the next code point
+
+        if (matched && *tempSubstr == '\0') return str;
+        
+        str_getUTF8CodePoint(&str);
     }
-    return NULL;  // Substring not found
+    str_last_error = STR_SUCCESS;
+    return NULL;
 }
 
-// Copy characters from src to dest until a delimiter is found
-void str_copyUntil(const char* src, const char* delimiter, char* dest) {
-    const char* pos = str_find(src, delimiter, 0);  // Find the delimiter in the source string
+// Copies characters from src to dest until the delimiter is found
+StrError str_copyUntil(const char* src, const char* delimiter, char* dest) {
+    if (!src || !delimiter || !dest) return (str_last_error = STR_ERROR_NULL_INPUT);
+
+    const char* pos = str_find(src, delimiter, 0);
     while (*src && src != pos) {
         const char* srcStart = src;
-        str_getUTF8CodePoint(&src);  // Extract the code point and advance src
-        int len = src - srcStart;    // Get the byte length of the code point
-        strncpy(dest, srcStart, len);  // Copy the code point to the destination
-        dest += len;  // Advance the destination pointer
+        str_getUTF8CodePoint(&src);
+        int len = src - srcStart;
+        strncpy(dest, srcStart, len);
+        dest += len;
     }
-    *dest = '\0'; 
+    
+    *dest = '\0';
+    return (str_last_error = STR_SUCCESS);
 }
 
-// Checks if a code point is a Unicode whitespace character
+// Checks if a Unicode code point is a whitespace character
 int str_isUnicodeWhitespace(int codePoint) {
     int size = sizeof(unicodeWhitespace) / sizeof(unicodeWhitespace[0]);
     for (int i = 0; i < size; i++) {
-        if (unicodeWhitespace[i] == codePoint) {
-            return 1; // Found in the list
-        }
+        if (unicodeWhitespace[i] == codePoint) return 1;
     }
     return 0;
 }
 
 // Checks if a character is a whitespace character
 int str_isWhitespace(const char* str) {
+    if (!str) {
+        str_last_error = STR_ERROR_NULL_INPUT;
+        return 0;
+    }
+
     int codePoint = str_getUTF8CodePoint(&str);
-    // Check if the code point matches ASCII whitespace or Unicode whitespace
-    return (codePoint == 0x20 || // Space
-            codePoint == 0x09 || // Tab
-            codePoint == 0x0A || // Line Feed
-            codePoint == 0x0D || // Carriage Return
-            str_isUnicodeWhitespace(codePoint)); // Check Unicode whitespace
+    return (codePoint == 0x20 || codePoint == 0x09 || codePoint == 0x0A || 
+            codePoint == 0x0D || str_isUnicodeWhitespace(codePoint));
 }
 
-// Checks if a character is a whitespace character
+// Validates if a string is valid UTF-8
 bool str_isValidUTF8(const char* str) {
+    if (!str) return false;
+
     while (*str) {
         int seqLen = str_getUTF8CodePoint(&str);
         if (seqLen == -1 || (seqLen == 4 && str_getCodePointFromBytes(str, seqLen) > 0x10FFFF)) {
-            return false;  // Invalid UTF-8 or code points above 0x10FFFF
+            return false;
         }
     }
     return true;
 }
 
-// Returns the length of the UTF-8 sequence starting with the given byte
+// Gets the length of the UTF-8 sequence starting with a byte
 int str_getUTF8SequenceLength(unsigned char byte) {
-    if (byte <= 0x7F) return 1; // ASCII
-    else if ((byte & 0xE0) == 0xC0) return 2; // 2-byte UTF-8
-    else if ((byte & 0xF0) == 0xE0) return 3; // 3-byte UTF-8
-    else if ((byte & 0xF8) == 0xF0) return 4; // 4-byte UTF-8
-    return -1; // Invalid UTF-8 byte
+    if (byte <= 0x7F) return 1;
+    else if ((byte & 0xE0) == 0xC0) return 2;
+    else if ((byte & 0xF0) == 0xE0) return 3;
+    else if ((byte & 0xF8) == 0xF0) return 4;
+    return -1;
 }
 
 // Returns the code point from a sequence of UTF-8 bytes
 int str_getCodePointFromBytes(const char* str, int seqLen) {
+    if (!str || seqLen < 1 || seqLen > 4) return -1;
+
     int codePoint = 0;
     if (seqLen == 1) return *str;
     if (seqLen == 2) {
@@ -143,74 +168,106 @@ int str_getCodePointFromBytes(const char* str, int seqLen) {
     return codePoint;
 }
 
-// Returns the Unicode code point from the start of the string and advances the pointer
+// Gets the Unicode code point from the start of the string and advances the pointer
 int str_getUTF8CodePoint(const char** str) {
+    if (!str || !*str) return -1;
+
     unsigned char byte = (unsigned char)**str;
     int seqLen = str_getUTF8SequenceLength(byte);
-    if (seqLen == -1) {
-        return -1; // Invalid UTF-8 byte
-    }
+    if (seqLen == -1) return -1;
+
     int codePoint = str_getCodePointFromBytes(*str, seqLen);
-    *str += seqLen; // Advance the pointer to the next character
+    *str += seqLen;
     return codePoint;
 }
 
-// ==== MAIN FUNCTIONS ====
-// Returns the length of the string
+// Returns the length of the string in code points
 int str_length(const char* str) {
+    if (!str) return -1;
+
     int length = 0;
     while (*str) {
         int seqLen = str_getUTF8CodePoint(&str);
-        if (seqLen == -1) return -1; // Invalid UTF-8 byte
+        if (seqLen == -1) return -1;
         length++;
     }
     return length;
 }
 
-// Returns the character at a given index in the string
+// Returns the character at a specific index in a string
 char* str_charAt(const char* str, int index) {
+    if (!str || index < 0) return NULL;
+
     int i = 0;
     const char* start;
     while (*str) {
-        start = str;  // Store the start of the current code point
-        int codePoint = str_getUTF8CodePoint(&str);  // Extract the code point and advance
+        start = str;
+        str_getUTF8CodePoint(&str);
         if (i == index) {
-            int len = str - start;  // Calculate the byte length of the code point
+            int len = str - start;
             char* result = malloc(len + 1);
-            if (!result) return NULL; // Check for allocation failure
-            strncpy(result, start, len);  // Copy the code point
-            result[len] = '\0';  // Null-terminate
+            if (!result) return NULL;
+            strncpy(result, start, len);
+            result[len] = '\0';
             return result;
         }
         i++;
     }
-    return NULL;  // Index out of bounds
+    return NULL;
 }
 
-// Returns the ASCII value of the character at a given index in the string
+// Returns the ASCII value of the character at a specific index in a string
 int str_charCodeAt(const char* str, int index) {
+    if (!str) {
+        str_last_error = STR_ERROR_NULL_INPUT;
+        return -1;
+    }
+    if (index < 0) {
+        str_last_error = STR_ERROR_INVALID_INDEX;
+        return -1;
+    }
+
     int i = 0;
     while (*str) {
-        int codePoint = str_getUTF8CodePoint(&str);  // Extract the code point once
+        int codePoint = str_getUTF8CodePoint(&str);
         if (i == index) {
-            return codePoint;  // Return the code point at the desired index
+            str_last_error = STR_SUCCESS;
+            return codePoint;
         }
         i++;
     }
-    return -1; // Index out of bounds
+    str_last_error = STR_ERROR_INVALID_INDEX;
+    return -1;
 }
 
 // Returns the index of the first occurrence of a substring in a string
 int str_indexOf(const char* str, const char* substr) {
-    const char* pos = str_find(str, substr, 0);
-    if (pos) {
-        return (pos - str) / str_getUTF8CodePoint(&str);
+    if (!str || !substr) {
+        str_last_error = STR_ERROR_NULL_INPUT;
+        return -1;
     }
+
+    int i = 0;
+    while (*str) {
+        if (str_findHelper(str, substr)) {
+            str_last_error = STR_SUCCESS;
+            return i;
+        }
+        str_getUTF8CodePoint(&str);
+        i++;
+    }
+
+    str_last_error = STR_SUCCESS;
     return -1;
 }
 
 // Returns the index of the last occurrence of a substring in a string
 int str_lastIndexOf(const char* str, const char* substr) {
+    if (!str || !substr) {
+        str_last_error = STR_ERROR_NULL_INPUT;
+        return -1;
+    }
+
     int lastIndex = -1;
     int index = 0;
     while (*str) {
@@ -225,261 +282,272 @@ int str_lastIndexOf(const char* str, const char* substr) {
     return lastIndex;
 }
 
-// Join two strings together
-void str_concat(const char* str1, const char* str2, char* result) {
-    int len1 = str_length(str1);
-    int len2 = str_length(str2);
-    strncpy(result, str1, len1);
-    strncpy(result + len1, str2, len2);
-    result[len1 + len2] = '\0';  // Null-terminate the result
-}
+// Joins two strings together
+StrError str_concat(const char* str1, const char* str2, char* result) {
+    if (!str1 || !str2 || !result) return (str_last_error = STR_ERROR_NULL_INPUT);
 
-// Convert the entire string to lowercase (UTF-8 compatible on a very basic level for now)
-void str_toLowerCase(char* str) {
-    while (*str) {
-        int seqLen = str_getUTF8CodePoint(&str);
-        if (seqLen == 1) { // ASCII
-            if (*str >= 'A' && *str <= 'Z') {
-                *str += 32; // Convert ASCII uppercase to lowercase (32 is the difference between ASCII uppercase and lowercase)
-            }
-        } else {
-            // Handle common non-ASCII Latin characters
-            int codePoint = str_getUTF8CodePoint(&str);
-            if (codePoint >= 0x00C0 && codePoint <= 0x00D6) { // 'À' to 'Ö'
-                codePoint -= 32;
-            } else if (codePoint >= 0x00D8 && codePoint <= 0x00DE) { // 'Ø' to 'Þ'
-                codePoint -= 32;
-            }
-            char* lowerChar = str_fromCodePoint(codePoint);
-            memcpy(str, lowerChar, seqLen); // Copy the new lowercase character over
-            free(lowerChar);
-        }
+    while (*str1) {
+        int seqLen = str_getUTF8SequenceLength((unsigned char)*str1);
+        strncpy(result, str1, seqLen);
+        result += seqLen;
+        str1 += seqLen;
     }
-}
 
-// Convert the entire string to uppercase (UTF-8 compatible)
-void str_toUpperCase(char* str) {
-    while (*str) {
-        int seqLen = str_getUTF8CodePoint(&str);
-        if (seqLen == 1) { // ASCII
-            if (*str >= 'a' && *str <= 'z') {
-                *str -= 32; // Convert ASCII lowercase to uppercase (32 is the difference between ASCII uppercase and lowercase)
-            }
-        } else {
-            // Handle common non-ASCII Latin characters
-            int codePoint = str_getUTF8CodePoint(&str);
-            if (codePoint >= 0x00C0 && codePoint <= 0x00D6) { // 'À' to 'Ö'
-                codePoint -= 32;
-            } else if (codePoint >= 0x00D8 && codePoint <= 0x00DE) { // 'Ø' to 'Þ'
-                codePoint -= 32;
-            }
-            char* upperChar = str_fromCodePoint(codePoint);
-            memcpy(str, upperChar, seqLen); // Copy the new uppercase character over
-            free(upperChar);
-        }
+    while (*str2) {
+        int seqLen = str_getUTF8SequenceLength((unsigned char)*str2);
+        strncpy(result, str2, seqLen);
+        result += seqLen;
+        str2 += seqLen;
     }
+
+    *result = '\0';
+    return (str_last_error = STR_SUCCESS);
 }
 
-// Remove leading whitespace characters from a string
-void str_trimStart(char* str) {
+// Converts the entire string to lowercase
+StrError str_toLowerCase(char* str) {
+    if (!str) return (str_last_error = STR_ERROR_NULL_INPUT);
+
+    const char* src = str;
+    while (*str) {
+        int codePoint = str_getUTF8CodePoint(&src);
+        if (codePoint >= 'A' && codePoint <= 'Z') {
+            *str = *str + 32;  // Convert ASCII uppercase to lowercase
+        }
+        str++;
+    }
+
+    return (str_last_error = STR_SUCCESS);
+}
+
+// Converts the entire string to uppercase
+StrError str_toUpperCase(char* str) {
+    if (!str) return (str_last_error = STR_ERROR_NULL_INPUT);
+
+    const char* src = str;
+    while (*str) {
+        int codePoint = str_getUTF8CodePoint(&src);
+        if (codePoint >= 'a' && codePoint <= 'z') {
+            *str = *str - 32;  // Convert ASCII lowercase to uppercase
+        }
+        str++;
+    }
+
+    return (str_last_error = STR_SUCCESS);
+}
+
+// Removes leading whitespace from a string
+StrError str_trimStart(char* str) {
+    if (!str) return (str_last_error = STR_ERROR_NULL_INPUT);
+
     const char* start = str;
     while (*start && str_isWhitespace(start)) {
-        str_getUTF8CodePoint(&start);  // Skip over the leading whitespace
+        str_getUTF8CodePoint(&start);
     }
-    strcpy(str, start);  // Copy the remaining part of the string back to the start
+    memmove(str, start, strlen(start) + 1);
+    return (str_last_error = STR_SUCCESS);
 }
 
-// Remove trailing whitespace characters from a string
-void str_trimEnd(char* str) {
-    char* end = str + str_length(str);
-    while (end > str) {
-        const char* temp = end;
-        int codePoint = str_getUTF8CodePoint(&temp);  // Get the last code point
-        if (!str_isWhitespace(temp)) {
-            break;  // Stop when a non-whitespace character is found
+// Removes trailing whitespace from a string
+StrError str_trimEnd(char* str) {
+    if (!str || !*str) return (str_last_error = STR_ERROR_NULL_INPUT);
+
+    char* end = str + strlen(str);
+    char* last = end - 1;
+
+    while (last >= str) {
+        while (last > str && (*last & 0xC0) == 0x80) {
+            last--;
         }
-        end--;  // Move the pointer back for trimming
+        
+        if (!str_isWhitespace(last)) break;
+        
+        end = last;
+        last = end - 1;
     }
-    *(end + 1) = '\0';  // Null-terminate the string after the last non-whitespace
+
+    *end = '\0';
+    return (str_last_error = STR_SUCCESS);
 }
 
-// Trim whitespace characters from both the start and end of the string
-void str_trim(char* str) {
+// Trims whitespace from both ends of the string
+StrError str_trim(char* str) {
     str_trimStart(str);
     str_trimEnd(str);
+    return (str_last_error = STR_SUCCESS);
 }
 
-// Repeat a string a given number of times
-void str_repeat(const char* str, int count, char* result) {
-    if (count < 0) return;
+// Repeats a string a given number of times
+StrError str_repeat(const char* str, int count, char* result) {
+    if (!str || !result) return (str_last_error = STR_ERROR_NULL_INPUT);
+    if (count < 0) return (str_last_error = STR_ERROR_INVALID_INDEX);
+
     int strLen = str_length(str);
+    if (strLen == -1) return (str_last_error = STR_ERROR_INVALID_UTF8);
+
     for (int i = 0; i < count; i++) {
         strncpy(result, str, strLen);
-        result += strLen;  // Advance result pointer
+        result += strLen;
     }
-    *result = '\0';  // Null-terminate
+
+    *result = '\0';
+    return (str_last_error = STR_SUCCESS);
 }
 
 // Check if a string starts with a given prefix
 int str_startsWith(const char* str, const char* prefix) {
+    if (!str || !prefix) {
+        str_last_error = STR_ERROR_NULL_INPUT;
+        return 0;
+    }
+
     while (*prefix) {
         if (*str++ != *prefix++) return 0;
     }
+
     return 1;
 }
 
 // Check if a string ends with a given suffix
 int str_endsWith(const char* str, const char* suffix) {
-    int strLen = str_length(str), suffixLen = str_length(suffix);
+    if (!str || !suffix) {
+        str_last_error = STR_ERROR_NULL_INPUT;
+        return 0;
+    }
+
+    int strLen = str_length(str);
+    int suffixLen = str_length(suffix);
+
     if (suffixLen > strLen) return 0;
+
     str += strLen - suffixLen;
+
     while (*suffix) {
         if (*str++ != *suffix++) return 0;
     }
+
     return 1;
-}
-
-// Extract a substring from a string
-void str_slice(const char* str, int start, int end, char* result) {
-    int i = 0;
-    while (*str && i < start) {
-        str_getUTF8CodePoint(&str);
-        i++;
-    }
-    while (*str && i < end) {
-        int seqLen = str_getUTF8CodePoint(&str);
-        for (int j = 0; j < seqLen; j++) {
-            *result++ = *str++;
-        }
-        i++;
-    }
-    *result = '\0';
-}
-
-// Extract a substring from a string
-void str_substring(const char* str, int start, int end, char* result) {
-    int i = 0;
-    const char* startPtr = str;
-    while (*str && i < start) {
-        str_getUTF8CodePoint(&str);
-        i++;
-    }
-    startPtr = str;
-    while (*str && i < end) {
-        str_getUTF8CodePoint(&str);
-        i++;
-    }
-    str_copyRange(startPtr, 0, str - startPtr, result);
-}
-
-// Returns the Unicode code point at the given index
-int str_codePointAt(const char* str, int index, int* codePoint) {
-    int i = 0;
-    while (*str) {
-        if (i == index) {
-            *codePoint = str_getUTF8CodePoint(&str);  // Extract the code point at the index
-            return *codePoint;
-        }
-        str_getUTF8CodePoint(&str);  // Advance to the next code point
-        i++;
-    }
-    return -1;  // Index out of bounds
-}
-
-// Returns a UTF-8 string for a given Unicode code point
-char* str_fromCodePoint(int codePoint) {
-    char* result;
-    if (codePoint <= 0x7F) {
-        result = (char*)malloc(2); // 1 byte + null terminator
-        result[0] = (char)codePoint;
-        result[1] = '\0';
-    } else if (codePoint <= 0x7FF) {
-        result = (char*)malloc(3); // 2 bytes + null terminator
-        result[0] = (char)((codePoint >> 6) | 0xC0);
-        result[1] = (char)((codePoint & 0x3F) | 0x80);
-        result[2] = '\0';
-    } else if (codePoint <= 0xFFFF) {
-        result = (char*)malloc(4); // 3 bytes + null terminator
-        result[0] = (char)((codePoint >> 12) | 0xE0);
-        result[1] = (char)(((codePoint >> 6) & 0x3F) | 0x80);
-        result[2] = (char)((codePoint & 0x3F) | 0x80);
-        result[3] = '\0';
-    } else if (codePoint <= 0x10FFFF) {
-        result = (char*)malloc(5); // 4 bytes + null terminator
-        result[0] = (char)((codePoint >> 18) | 0xF0);
-        result[1] = (char)(((codePoint >> 12) & 0x3F) | 0x80);
-        result[2] = (char)(((codePoint >> 6) & 0x3F) | 0x80);
-        result[3] = (char)((codePoint & 0x3F) | 0x80);
-        result[4] = '\0';
-    } else {
-        return NULL; // Invalid code point
-    }
-    return result;
 }
 
 // Check if a string includes a given substring
 int str_includes(const char* str, const char* substr) {
+    if (!str || !substr) {
+        str_last_error = STR_ERROR_NULL_INPUT;
+        return 0;
+    }
+
     return str_indexOf(str, substr) != -1;
 }
 
-// Pad a string with a given character at the start to reach a target length
-void str_padStart(const char* str, int targetLength, const char* padStr, char* result, size_t resultSize) {
-    int strLen = str_length(str), padLen = str_length(padStr);
-    if (targetLength <= strLen) {
-        str_concat(str, "", result);
+// Extracts a substring from a string and stores it in result
+void str_slice(const char* str, int start, int end, char* result) {
+    if (!str || !result) {
+        str_last_error = STR_ERROR_NULL_INPUT;
         return;
     }
-    int padCount = targetLength - strLen;
-    if (targetLength >= resultSize) {
-        fprintf(stderr, "Error: Buffer size is too small.\n");
-        return;
+
+    int i = 0;
+    while (*str && i < start) {
+        str_getUTF8CodePoint(&str);
+        i++;
     }
+
+    while (*str && i < end) {
+        int seqLen = str_getUTF8SequenceLength((unsigned char)*str);
+        strncpy(result, str, seqLen);
+        result += seqLen;
+        str += seqLen;
+        i++;
+    }
+
+    *result = '\0';
+}
+
+// Extracts a substring from a string and stores it in result
+StrError str_substring(const char* str, int start, int end, char* result) {
+    if (!str || !result) return (str_last_error = STR_ERROR_NULL_INPUT);
+
+    int i = 0;
+    const char* startPtr = str;
+    
+    while (*str && i < start) {
+        str_getUTF8CodePoint(&str);
+        i++;
+    }
+
+    startPtr = str;
+
+    while (*str && i < end) {
+        str_getUTF8CodePoint(&str);
+        i++;
+    }
+
+    str_copyRange(startPtr, 0, str - startPtr, result);
+    return (str_last_error = STR_SUCCESS);
+}
+
+
+// Pads a string with a given character at the start to reach a target length
+StrError str_padStart(const char* str, int targetLength, const char* padStr, char* result, size_t resultSize) {
+    if (!str || !padStr || !result) return (str_last_error = STR_ERROR_NULL_INPUT);
+
+    int strLen = str_length(str);
+    int padLen = str_length(padStr);
+    if (targetLength <= strLen || targetLength >= resultSize) return (str_last_error = STR_ERROR_INVALID_INDEX);
+
     char temp[resultSize];
     temp[0] = '\0';
+
+    int padCount = targetLength - strLen;
     while (padCount > padLen) {
         str_concat(temp, padStr, temp);
         padCount -= padLen;
     }
     while (padCount-- > 0) strncat(temp, padStr, 1);
+
     str_concat(temp, str, result);
+    return (str_last_error = STR_SUCCESS);
 }
 
-// Pad a string with a given character at the end to reach a target length
-void str_padEnd(const char* str, int targetLength, const char* padStr, char* result, size_t resultSize) {
-    int strLen = str_length(str), padLen = str_length(padStr);
-    if (targetLength >= resultSize) {
-        fprintf(stderr, "Error: Buffer size is too small.\n");
-        return;
-    }
+// Pads a string with a given character at the end to reach a target length
+StrError str_padEnd(const char* str, int targetLength, const char* padStr, char* result, size_t resultSize) {
+    if (!str || !padStr || !result) return (str_last_error = STR_ERROR_NULL_INPUT);
+
+    int strLen = str_length(str);
+    int padLen = str_length(padStr);
+    if (targetLength >= resultSize) return (str_last_error = STR_ERROR_MEMORY_ALLOCATION);
+
     str_concat(str, "", result);
+
     int padCount = targetLength - strLen;
     while (padCount > padLen) {
         str_concat(result, padStr, result);
         padCount -= padLen;
     }
     while (padCount-- > 0) strncat(result, padStr, 1);
+
     result[targetLength] = '\0';
+    return (str_last_error = STR_SUCCESS);
 }
 
-// Replace all occurrences of a substring with another substring in a string
-void str_replace(const char* str, const char* searchValue, const char* newValue, char* result) {
+// Replaces all occurrences of a substring with another substring in a string
+StrError str_replace(const char* str, const char* searchValue, const char* newValue, char* result) {
+    if (!str || !searchValue || !newValue || !result) return (str_last_error = STR_ERROR_NULL_INPUT);
+
     const char* pos = str;
-    int searchLen = str_length(searchValue);
-    int newValueLen = str_length(newValue);
+    int searchLenBytes = strlen(searchValue);
+    int newValueLenBytes = strlen(newValue);
 
     while ((pos = str_findHelper(pos, searchValue)) != NULL) {
-        // Copy up to the match
-        str_copyUntil(str, searchValue, result);
-        result += (pos - str);  // Advance result pointer after the copied part
-        str = pos + searchLen;  // Move str pointer after the matched searchValue
-
-        // Copy the replacement value
-        strcpy(result, newValue);  // Safely copy the new value
-        result += newValueLen;  // Advance result pointer after copying
-
-        pos = str;  // Continue searching after the replacement
+        int bytesToCopy = pos - str;
+        strncpy(result, str, bytesToCopy);
+        result += bytesToCopy;
+        strcpy(result, newValue);
+        result += newValueLenBytes;
+        str = pos + searchLenBytes;
+        pos = str;
     }
 
-    // Copy the remaining part of the original string
     strcpy(result, str);
+    return (str_last_error = STR_SUCCESS);
 }
