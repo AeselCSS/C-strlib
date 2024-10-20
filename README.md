@@ -51,7 +51,7 @@ On Windows-based systems, run the compiled program by using the following comman
 | `matchAll()`          | Not Implementable   | Requires regex support                        | ❌             |
 | `replaceAll()`        | Not Implementable   | Requires regex or advanced manipulation       | ❌             |
 | `search()`            | Not Implementable   | Requires regex                                | ❌             |
-| `codePointAt()`       | Not Implementable   | Requires Unicode support                      | ❌             |
+| `codePointAt()`       | Not Implementable   | Requires Unicode support                      | ✅             |
 | `normalize()`         | Not Implementable   | Requires Unicode normalization                | ❌             |
 | `isWellFormed()`      | Not Implementable   | Requires Unicode support                      | ❌             |
 | `toWellFormed()`      | Not Implementable   | Requires Unicode support                      | ❌             |
