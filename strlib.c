@@ -93,6 +93,17 @@ int str_isUnicodeWhitespace(int codePoint) {
 }
 
 // Checks if a character is a whitespace character
+int str_isWhitespace(const char* str) {
+    int codePoint = str_getUTF8CodePoint(&str);
+    // Check if the code point matches ASCII whitespace or Unicode whitespace
+    return (codePoint == 0x20 || // Space
+            codePoint == 0x09 || // Tab
+            codePoint == 0x0A || // Line Feed
+            codePoint == 0x0D || // Carriage Return
+            str_isUnicodeWhitespace(codePoint)); // Check Unicode whitespace
+}
+
+// Checks if a character is a whitespace character
 bool str_isValidUTF8(const char* str) {
     while (*str) {
         int seqLen = str_getUTF8CodePoint(&str);
@@ -103,7 +114,6 @@ bool str_isValidUTF8(const char* str) {
     return true;
 }
 
-// ==== HELPER FUNCTIONS FOR UTF-8 ====
 // Returns the length of the UTF-8 sequence starting with the given byte
 int str_getUTF8SequenceLength(unsigned char byte) {
     if (byte <= 0x7F) return 1; // ASCII
